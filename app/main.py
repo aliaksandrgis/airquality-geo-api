@@ -93,32 +93,42 @@ def list_measurements(
     where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
     if latest_per_station:
         sql = f"""
-            WITH filtered AS (
-                SELECT station_id, pollutant, value, unit, city, location_name, lat, lon, country, ts, source
-                FROM measurements
-                {where_clause}
-            )
             SELECT DISTINCT ON (station_id, pollutant)
-                station_id, pollutant, value, unit, city, location_name, lat, lon, country, ts, source
-            FROM filtered
-            ORDER BY station_id, pollutant, ts DESC
+                station_id,
+                pollutant,
+                value,
+                unit,
+                city,
+                location_name,
+                lat,
+                lon,
+                country,
+                observed_at AS ts,
+                source
+            FROM measurements_curated
+            {where_clause}
+            ORDER BY station_id, pollutant, observed_at DESC
             LIMIT %(limit)s OFFSET %(offset)s;
         """
     else:
         sql = f"""
-            SELECT station_id, pollutant, value, unit, city, location_name, lat, lon, country, ts, source
-            FROM measurements
+            SELECT
+                station_id,
+                pollutant,
+                value,
+                unit,
+                city,
+                location_name,
+                lat,
+                lon,
+                country,
+                observed_at AS ts,
+                source
+            FROM measurements_curated
             {where_clause}
-            ORDER BY ts DESC
+            ORDER BY observed_at DESC
             LIMIT %(limit)s OFFSET %(offset)s;
         """
-    sql = f"""
-        SELECT station_id, pollutant, value, unit, city, location_name, lat, lon, country, ts, source
-        FROM measurements
-        {where_clause}
-        ORDER BY ts DESC
-        LIMIT %(limit)s OFFSET %(offset)s;
-    """
     params.update({"limit": limit, "offset": offset})
 
     with _get_conn() as conn, conn.cursor() as cur:
@@ -172,13 +182,13 @@ def measurements_timeseries(
                country,
                city,
                location_name,
-               ts,
+               observed_at AS ts,
                source
-        FROM measurements
+        FROM measurements_curated
         WHERE station_id = %(station_id)s
           AND pollutant = %(pollutant)s
-          AND ts >= %(since)s
-        ORDER BY ts;
+          AND observed_at >= %(since)s
+        ORDER BY observed_at;
     """
     with _get_conn() as conn, conn.cursor() as cur:
         cur.execute(sql, params)
@@ -224,10 +234,10 @@ def list_stations(
     sql = f"""
         WITH latest_meas AS (
             SELECT DISTINCT ON (station_id)
-                station_id, source, pollutant, value, unit, ts
-            FROM measurements m
+                station_id, source, pollutant, value, unit, observed_at AS ts
+            FROM measurements_curated m
             {meas_where}
-            ORDER BY station_id, ts DESC
+            ORDER BY station_id, observed_at DESC
         )
         SELECT
             s.station_id,
@@ -296,10 +306,20 @@ def list_stations_wkt(
     sql = f"""
         WITH latest_meas AS (
             SELECT DISTINCT ON (station_id, pollutant)
-                station_id, source, pollutant, value, unit, ts, country, city, location_name, lat, lon
-            FROM measurements m
+                station_id,
+                source,
+                pollutant,
+                value,
+                unit,
+                observed_at AS ts,
+                country,
+                city,
+                location_name,
+                lat,
+                lon
+            FROM measurements_curated m
             {meas_where}
-            ORDER BY station_id, pollutant, ts DESC
+            ORDER BY station_id, pollutant, observed_at DESC
         )
         SELECT
             s.station_id,
