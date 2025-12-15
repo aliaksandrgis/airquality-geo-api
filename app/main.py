@@ -185,7 +185,7 @@ def measurements_timeseries(
         rows = cur.fetchall()
 
     if not rows:
-        # 404 so UI can distinguish "нет данных" от сетевой ошибки
+        # return 404 so the client can distinguish empty data from network errors
         raise HTTPException(status_code=404, detail="No measurements for given station/pollutant")
 
     return [
